@@ -6,62 +6,65 @@ from collections import defaultdict
 USER = "shibang-das"
 TOKEN = os.environ["GITHUB_TOKEN"]
 
-S = requests.Session()
-S.headers.update({
+s = requests.Session()
+s.headers.update({
     "Authorization": f"Bearer {TOKEN}",
     "Accept": "application/vnd.github+json"
 })
 
 def get(url, params=None):
-    r = S.get(url, params=params)
+    r = s.get(url, params=params)
     r.raise_for_status()
     return r.json()
 
-def paginated(url, params=None):
-    page = 1
+def commits():
     out = []
-    while True:
-        p = dict(params or {})
-        p.update({"per_page": 100, "page": page})
-        data = get(url, p)
-        if not data:
+    page = 1
+
+    while page <= 10:
+        data = get(
+            "https://api.github.com/search/commits",
+            {
+                "q": f"author:{USER}",
+                "per_page": 100,
+                "page": page
+            }
+        )
+
+        items = data.get("items", [])
+
+        if not items:
             break
-        out.extend(data)
+
+        out.extend(items)
+
+        if len(items) < 100:
+            break
+
         page += 1
+
     return out
 
-def repos():
-    return paginated(
-        f"https://api.github.com/users/{USER}/repos",
-        {"type": "owner", "sort": "updated"}
-    )
-
-def languages(repo):
-    data = get(repo["languages_url"])
-    total = sum(data.values())
-    if not total:
+def repo_languages(repo):
+    try:
+        return get(
+            f"https://api.github.com/repos/{repo}/languages"
+        )
+    except:
         return {}
-    return {k: v / total for k, v in data.items()}
-
-def commits(repo):
-    return paginated(
-        f"https://api.github.com/repos/{USER}/{repo['name']}/commits",
-        {"author": USER}
-    )
 
 def parse_time(x):
-    return datetime.fromisoformat(x.replace("Z", "+00:00"))
-
-def estimate(commits):
-    if not commits:
-        return 0
-
-    times = sorted(
-        parse_time(c["commit"]["author"]["date"])
-        for c in commits
+    return datetime.fromisoformat(
+        x.replace("Z", "+00:00")
     )
 
-    sessions = []
+def estimate(times):
+    if not times:
+        return 0
+
+    times = sorted(times)
+
+    total = 0
     start = times[0]
     prev = times[0]
 
@@ -72,52 +75,63 @@ def estimate(commits):
             prev = t
         else:
             duration = (prev - start).total_seconds() / 3600
-            sessions.append(max(0.5, min(duration + 0.5, 4)))
+            total += max(0.5, min(duration + 0.5, 4))
+
             start = t
             prev = t
 
     duration = (prev - start).total_seconds() / 3600
-    sessions.append(max(0.5, min(duration + 0.5, 4)))
+    total += max(0.5, min(duration + 0.5, 4))
 
-    return sum(sessions)
+    return total
 
-def fmt(hours):
-    if hours < 1:
-        return "<1h"
-    return f"{round(hours)}h"
+cs = commits()
 
-repos_data = repos()
+print(f"Found {len(cs)} commits")
+
+if not cs:
+    raise RuntimeError(
+        "No public GitHub commits found for this username."
+    )
+
+repo_commits = defaultdict(list)
+
+for c in cs:
+    repo = c["repository"]["full_name"]
+
+    date = c["commit"]["author"]["date"]
+
+    repo_commits[repo].append(
+        parse_time(date)
+    )
 
 total = defaultdict(float)
-repo_count = 0
 commit_count = 0
+repo_count = 0
 
-for repo in repos_data:
-    if repo["fork"] or repo["archived"]:
-        continue
+for repo, times in repo_commits.items():
 
-    cs = commits(repo)
-
-    if not cs:
-        continue
-
-    ls = languages(repo)
+    ls = repo_languages(repo)
 
     if not ls:
         continue
 
-    hours = estimate(cs)
+    total_bytes = sum(ls.values())
+
+    if total_bytes == 0:
+        continue
+
+    hours = estimate(times)
 
     if hours <= 0:
         continue
 
-    commit_count += len(cs)
+    commit_count += len(times)
     repo_count += 1
 
-    for lang, share in ls.items():
+    for lang, size in ls.items():
+        share = size / total_bytes
         total[lang] += hours * share
-
-total_hours = sum(total.values())
 
 items = sorted(
     total.items(),
@@ -126,31 +140,36 @@ items = sorted(
 )[:8]
 
 if not items:
-    raise RuntimeError("No GitHub activity found.")
+    raise RuntimeError(
+        "Commits were found, but no language statistics could be calculated."
+    )
 
+total_hours = sum(total.values())
 max_hours = items[0][1]
 
 rows = []
 
-for lang, hours in items:
+for i, (lang, hours) in enumerate(items):
+
+    y = 100 + i * 42
     width = max(5, int((hours / max_hours) * 220))
 
     rows.append(f"""
-    <text x="30" y="{100 + len(rows) * 42}"
+    <text x="30" y="{y}"
           fill="#e6edf3"
           font-family="Arial"
           font-size="16">{lang}</text>
 
-    <rect x="140" y="{84 + len(rows) * 42}"
+    <rect x="140" y="{y - 16}"
           width="{width}"
           height="22"
           rx="5"
           fill="#58a6ff"/>
 
-    <text x="{155 + width}" y="{100 + len(rows) * 42}"
+    <text x="{155 + width}" y="{y}"
           fill="#8b949e"
           font-family="Arial"
-          font-size="14">{fmt(hours)}</text>
+          font-size="14">{round(hours)}h</text>
     """)
 
 height = 130 + len(items) * 42
@@ -160,12 +179,14 @@ width="520"
 height="{height}"
 viewBox="0 0 520 {height}">
 
-<rect width="100%" height="100%"
+<rect width="100%"
+height="100%"
 rx="12"
 fill="#0d1117"
 stroke="#30363d"/>
 
-<text x="30" y="35"
+<text x="30"
+y="35"
 fill="#ffffff"
 font-family="Arial"
 font-size="20"
@@ -173,7 +194,8 @@ font-weight="bold">
 ⏱ Estimated Development Time
 </text>
 
-<text x="30" y="60"
+<text x="30"
+y="60"
 fill="#8b949e"
 font-family="Arial"
 font-size="12">
@@ -182,11 +204,12 @@ Based on historical GitHub activity
 
 {''.join(rows)}
 
-<text x="30" y="{height - 18}"
+<text x="30"
+y="{height - 18}"
 fill="#6e7681"
 font-family="Arial"
 font-size="11">
-{fmt(total_hours)} estimated · {commit_count} commits · {repo_count} repositories
+{round(total_hours)}h estimated · {commit_count} commits · {repo_count} repositories
 </text>
 
 </svg>
@@ -194,7 +217,11 @@ font-size="11">
 
 os.makedirs("generated", exist_ok=True)
 
-with open("generated/development-time.svg", "w", encoding="utf-8") as f:
+with open(
+    "generated/development-time.svg",
+    "w",
+    encoding="utf-8"
+) as f:
     f.write(svg)
 
 print("Generated development-time.svg")

@@ -1,4 +1,4 @@
-## Hi there, I'm Shibang 👋
+## Hey there, I'm Shibang 👋
 
 <p align="center">
   <picture>

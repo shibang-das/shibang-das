@@ -9,10 +9,10 @@
   <a href="https://vscode-portfolio.shibangdas3.workers.dev/">
     <img src="https://img.shields.io/badge/Portfolio-devbox-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Portfolio" />
   </a>
-  <a href="https://www.linkedin.com/in/YOUR-LINKEDIN-HANDLE">
+  <a href="https://www.linkedin.com/in/shibang-das">
     <img src="https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn" />
   </a>
-  <a href="mailto:YOUR-EMAIL">
+  <a href="mailto:shibangsde@gmail.com">
     <img src="https://img.shields.io/badge/Email-Say%20hi-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Email" />
   </a>
 </p>

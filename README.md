@@ -2,6 +2,13 @@
 <p align="center">
 Portfolio - https://vscode-portfolio.shibangdas3.workers.dev/
 </p>
+
+<p align="center">
+  <a href="https://trybughunt.com/u/shibang">
+    <img src="https://trybughunt.com/card/shibang" alt="BugHunt stats" width="350" />
+  </a>
+</p>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)"
